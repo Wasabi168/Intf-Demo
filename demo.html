@@ -73,7 +73,8 @@
         .settings-panel h3 { margin: 0; font-size: 14px; color: #495057; flex: 1; }
         .settings-panel .panel-content { transition: opacity 0.2s; }
         .settings-panel label { display: block; font-size: 12px; color: #6c757d; margin-bottom: 4px; }
-        .settings-panel input {
+        .settings-panel input,
+        .settings-panel select {
             width: 100%;
             padding: 6px 8px;
             margin-bottom: 12px;
@@ -105,12 +106,20 @@
 <div class="container">
     <aside class="settings-panel collapsed" id="settings-panel">
         <div class="panel-header">
-            <button class="toggle-btn" id="toggle-settings" title="展開/收合設定">
+            <button class="toggle-btn" id="toggle-settings" title="展開/收合設定" data-i18n-title="toggleSettings">
                 <span></span><span></span><span></span>
             </button>
-            <h3>參數設定</h3>
+            <h3>設定</h3>
         </div>
         <div class="panel-content">
+            <label for="input-lang">語言</label>
+            <select id="input-lang">
+                <option value="auto">自動（依瀏覽器）</option>
+                <option value="zh-TW">繁體中文</option>
+                <option value="zh-CN">简体中文</option>
+                <option value="en">English</option>
+                <option value="de">Deutsch</option>
+            </select>
             <label for="input-thick">厚度 (µm)</label>
             <input type="number" id="input-thick" value="300" min="100" max="5000" step="50">
             <label for="input-range">X 軸行程 (µm)</label>
@@ -118,16 +127,88 @@
         </div>
     </aside>
     <div class="main-content">
-        <h2>干涉式感測器 Demo</h2>
-        <p>展示距離 (Distance) 與厚度 (Thickness) Peak 變化關係</p>
+        <h2 data-i18n="mainTitle">干涉式感測器 Demo</h2>
+        <p data-i18n="mainDesc">展示距離 (Distance) 與厚度 (Thickness) Peak 變化關係</p>
         <div id="canvas-container"></div>
         <div class="instructions">
-            💡 <b>操作說明：</b> 請使用滑鼠「拖曳藍色表面」來觀察下方訊號變化。
+            💡 <b data-i18n="instructionsLabel">操作說明：</b> <span data-i18n="instructionsText">請使用滑鼠「拖曳藍色表面」來觀察下方訊號變化。</span>
         </div>
     </div>
 </div>
 
 <script>
+// --- 多語系 ---
+const i18n = {
+    'zh-TW': {
+        settingsTitle: '設定', langLabel: '語言', thickLabel: '厚度 (µm)', rangeLabel: 'X 軸行程 (µm)',
+        mainTitle: '干涉式感測器 Demo', mainDesc: '展示距離 (Distance) 與厚度 (Thickness) Peak 變化關係',
+        instructionsLabel: '操作說明：', instructionsText: '請使用滑鼠「拖曳藍色表面」來觀察下方訊號變化。',
+        toggleSettings: '展開/收合設定',
+        physicalSpace: '物理空間示意 (Physical Space)', signalPeaks: '訊號光譜 (Signal Peaks)',
+        labelAb: 'a-b (Thickness)', labelAR: 'a-R (Dist)', labelBR: 'b-R'
+    },
+    'zh-CN': {
+        settingsTitle: '设置', langLabel: '语言', thickLabel: '厚度 (µm)', rangeLabel: 'X 轴行程 (µm)',
+        mainTitle: '干涉式传感器 Demo', mainDesc: '展示距离 (Distance) 与厚度 (Thickness) Peak 变化关系',
+        instructionsLabel: '操作说明：', instructionsText: '请使用滑鼠「拖曳蓝色表面」来观察下方讯号变化。',
+        toggleSettings: '展开/收起设置',
+        physicalSpace: '物理空间示意 (Physical Space)', signalPeaks: '讯号光谱 (Signal Peaks)',
+        labelAb: 'a-b (厚度)', labelAR: 'a-R (距离)', labelBR: 'b-R'
+    },
+    'en': {
+        settingsTitle: 'Settings', langLabel: 'Language', thickLabel: 'Thickness (µm)', rangeLabel: 'X Range (µm)',
+        mainTitle: 'Interferometric Sensor Demo', mainDesc: 'Shows relationship between Distance and Thickness peaks',
+        instructionsLabel: 'Instructions:', instructionsText: 'Drag the blue surface to observe signal changes below.',
+        toggleSettings: 'Expand/Collapse settings',
+        physicalSpace: 'Physical Space', signalPeaks: 'Signal Peaks',
+        labelAb: 'a-b (Thickness)', labelAR: 'a-R (Dist)', labelBR: 'b-R'
+    },
+    'de': {
+        settingsTitle: 'Einstellungen', langLabel: 'Sprache', thickLabel: 'Dicke (µm)', rangeLabel: 'X-Bereich (µm)',
+        mainTitle: 'Interferometrischer Sensor Demo', mainDesc: 'Zeigt die Beziehung zwischen Distanz- und Dicke-Peaks',
+        instructionsLabel: 'Anleitung:', instructionsText: 'Ziehen Sie die blaue Fläche, um die Signale unten zu beobachten.',
+        toggleSettings: 'Einstellungen ein-/ausklappen',
+        physicalSpace: 'Physikalischer Raum', signalPeaks: 'Signal-Peaks',
+        labelAb: 'a-b (Dicke)', labelAR: 'a-R (Abst.)', labelBR: 'b-R'
+    }
+};
+let currentLang = 'zh-TW';  // 快取當前語言，供 canvas draw 使用
+function getLang() {
+    const sel = document.getElementById('input-lang');
+    if (!sel) return currentLang;
+    const v = sel.value;
+    if (v === 'auto') {
+        const browser = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+        if (browser.startsWith('zh')) return browser.startsWith('zh-cn') ? 'zh-CN' : 'zh-TW';
+        if (browser.startsWith('de')) return 'de';
+        return 'en';
+    }
+    return v;
+}
+function updateCurrentLang() { currentLang = getLang(); }
+function t(key) { return (i18n[currentLang] || i18n['zh-TW'])[key] || key; }
+function applyI18n() {
+    const lang = getLang();
+    const L = i18n[lang] || i18n['zh-TW'];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (L[k] !== undefined) el.textContent = L[k];
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const k = el.getAttribute('data-i18n-title');
+        if (L[k] !== undefined) el.title = L[k];
+    });
+    const labels = { 'input-thick': 'thickLabel', 'input-range': 'rangeLabel' };
+    Object.keys(labels).forEach(id => {
+        const lab = document.querySelector(`label[for="${id}"]`);
+        if (lab && L[labels[id]]) lab.textContent = L[labels[id]];
+    });
+    const labLang = document.querySelector('label[for="input-lang"]');
+    if (labLang && L.langLabel) labLang.textContent = L.langLabel;
+    const h3 = document.querySelector('.settings-panel h3');
+    if (h3 && L.settingsTitle) h3.textContent = L.settingsTitle;
+}
+
 // --- 您調整後的核心邏輯 ---
 let rPos = 300;     // 參考面 R 的固定位置（較低）
 let aPos = 280;     // 表面 a 的預設位置（與參考面等高：a 線與 R 紅線同高）
@@ -148,6 +229,19 @@ function setup() {
     let cnv = createCanvas(560, 720);
     cnv.parent('canvas-container');
     
+    // 語言：預設依瀏覽器，並載入儲存偏好
+    const langSel = document.getElementById('input-lang');
+    const saved = localStorage.getItem('demo-lang');
+    langSel.value = saved || 'auto';
+    langSel.addEventListener('change', function() {
+        localStorage.setItem('demo-lang', this.value);
+        updateCurrentLang();
+        applyI18n();
+        redraw();
+    });
+    updateCurrentLang();
+    applyI18n();
+
     // 輸入框即時更新參數
     document.getElementById('input-thick').addEventListener('input', updateParams);
     document.getElementById('input-range').addEventListener('input', updateParams);
@@ -191,8 +285,8 @@ function drawUI() {
     noStroke();
     textSize(16);
     textAlign(RIGHT);
-    text("物理空間示意 (Physical Space)", 540, 25);
-    text("訊號光譜 (Signal Peaks)", 540, 510);
+    text(t('physicalSpace'), 540, 25);
+    text(t('signalPeaks'), 540, 510);
 }
 
 function drawSensorProbe() {
@@ -221,7 +315,7 @@ function drawSurface(y, t) {
     text("b", 38, y + t + 5);
 }
 
-function drawGraph(a, t, r) {
+function drawGraph(a, thk, r) {
     push();
     translate(0, 670); // 座標系下移（配合畫布增高）
     stroke(150); strokeWeight(1);
@@ -238,12 +332,12 @@ function drawGraph(a, t, r) {
         text(um + "µm", px, 18);
     }
     
-    // diagram 距離（px）：t 代表 THICK_UM µm，轉成 graph 座標需 * (thickPx/t)
+    // diagram 距離（px）：thk 代表厚度，轉成 graph 座標需 * (thickPx/thk)
     let thickPx = THICK_UM * 500 / UM_MAX;  // 物理厚度 300µm 對應的 graph px
-    let scaleToGraph = thickPx / t;         // diagram px → graph px（維持結果=300µm）
+    let scaleToGraph = thickPx / thk;       // diagram px → graph px（維持結果=300µm）
     
-    let distAR = a - r;       // a 到 R 的距離（diagram px）
-    let distBR = (a + t) - r; // b 到 R 的距離（diagram px）
+    let distAR = a - r;        // a 到 R 的距離（diagram px）
+    let distBR = (a + thk) - r; // b 到 R 的距離（diagram px）
     let distAR_g = distAR * scaleToGraph;   // 轉成 graph 座標（物理 µm 對應）
     let distBR_g = distBR * scaleToGraph;
     
@@ -264,12 +358,12 @@ function drawGraph(a, t, r) {
     } else if (bothAbove) {
         bRPos = aRPos - thickPx;  // a 較遠，間距=300µm
     } else {
-        let bRBase = aRBase + t * RANGE_COEF;  // b=r 時對齊 0 軸（與 rangeOffset 的 t 抵銷）
+        let bRBase = aRBase + thk * RANGE_COEF;  // b=r 時對齊 0 軸（與 rangeOffset 的 thk 抵銷）
         if (distBR >= 0) {
             let origB = distBR_g + bRBase + rangeOffset;
             bRPos = origB - distBR_g * RANGE_COEF;
         } else {
-            bRPos = bRBase + rangeOffset + (r - (a + t)) * scaleToGraph;
+            bRPos = bRBase + rangeOffset + (r - (a + thk)) * scaleToGraph;
         }
     }
     
@@ -279,9 +373,9 @@ function drawGraph(a, t, r) {
     
     // a-b peak 固定於 1000 µm（厚度值）
     let abPos = toPx(THICK_UM);
-    drawPeak(abPos, 120, "a-b (Thickness)", color(0, 102, 204), THICK_UM);
-    drawPeak(aRPos, 120, "a-R (Dist)", color(255, 50, 50), toUm(aRPos));
-    drawPeak(bRPos, 80, "b-R", color(100), toUm(bRPos));
+    drawPeak(abPos, 120, t('labelAb'), color(0, 102, 204), THICK_UM);
+    drawPeak(aRPos, 120, t('labelAR'), color(255, 50, 50), toUm(aRPos));
+    drawPeak(bRPos, 80, t('labelBR'), color(100), toUm(bRPos));
     pop();
 }
 
