@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>CHRocodile干涉式感測器原理Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            font-family: "Microsoft JhengHei", Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            gap: 24px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            align-items: flex-start;
+        }
+        .main-content { flex: 1; text-align: center; min-width: 0; }
+        .settings-panel {
+            flex-shrink: 0;
+            width: 140px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            transition: width 0.25s ease, padding 0.25s ease;
+        }
+        .settings-panel.collapsed {
+            width: 30px;
+            padding: 12px 8px;
+            overflow: hidden;
+        }
+        .settings-panel.collapsed .panel-content { display: none; }
+        .settings-panel.collapsed .panel-header h3 { display: none; }
+        .settings-panel .toggle-btn {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            width: 28px;
+            height: 28px;
+            padding: 4px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .settings-panel .toggle-btn:hover { background: #e9ecef; }
+        .settings-panel .toggle-btn span {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background: #495057;
+            border-radius: 1px;
+        }
+        .settings-panel .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .settings-panel.collapsed .panel-header { margin-bottom: 0; }
+        .settings-panel h3 { margin: 0; font-size: 14px; color: #495057; flex: 1; }
+        .settings-panel .panel-content { transition: opacity 0.2s; }
+        .settings-panel label { display: block; font-size: 12px; color: #6c757d; margin-bottom: 4px; }
+        .settings-panel input {
+            width: 100%;
+            padding: 6px 8px;
+            margin-bottom: 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+        h2 { color: #333; margin-bottom: 10px; }
+        p { color: #666; font-size: 14px; margin-bottom: 20px; }
+        canvas {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            cursor: grab;
+        }
+        canvas:active { cursor: grabbing; }
+        .instructions {
+            margin-top: 15px;
+            padding: 10px;
+            background: #eef7ff;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <aside class="settings-panel collapsed" id="settings-panel">
+        <div class="panel-header">
+            <button class="toggle-btn" id="toggle-settings" title="展開/收合設定">
+                <span></span><span></span><span></span>
+            </button>
+            <h3>參數設定</h3>
+        </div>
+        <div class="panel-content">
+            <label for="input-thick">厚度 (µm)</label>
+            <input type="number" id="input-thick" value="300" min="100" max="5000" step="50">
+            <label for="input-range">X 軸行程 (µm)</label>
+            <input type="number" id="input-range" value="2000" min="500" max="10000" step="100">
+        </div>
+    </aside>
+    <div class="main-content">
+        <h2>干涉式感測器 Demo</h2>
+        <p>展示距離 (Distance) 與厚度 (Thickness) Peak 變化關係</p>
+        <div id="canvas-container"></div>
+        <div class="instructions">
+            💡 <b>操作說明：</b> 請使用滑鼠「拖曳藍色表面」來觀察下方訊號變化。
+        </div>
+    </div>
+</div>
+
+<script>
+// --- 您調整後的核心邏輯 ---
+let rPos = 300;     // 參考面 R 的固定位置（較低）
+let aPos = 280;     // 表面 a 的預設位置（與參考面等高：a 線與 R 紅線同高）
+let UM_MAX = 2000;      // X 軸總寬（µm），可由輸入框修改
+let THICK_UM = 300;     // a-b 厚度（µm），可由輸入框修改
+let thick = 175;        // 圖示高度（由 THICK_UM、UM_MAX 推算）
+const RANGE_COEF = 0.2;   // rangeOffset 與 aRBase 共用係數（a≥r 時 peak 靈敏度 = 1+RANGE_COEF）
+const ABOVE_COEF = 1.2;   // a < r 時 peak 靈敏度（surface 在參考面上方）
+const THICK_SCALE = 0.5;  // 厚度 µm→px 換算係數（固定）
+let isDragging = false;
+let sensorImg;      // 感測器探頭示意圖
+
+function preload() {
+    sensorImg = loadImage('sensor-probe.png');
+}
+
+function setup() {
+    let cnv = createCanvas(560, 720);
+    cnv.parent('canvas-container');
+    
+    // 輸入框即時更新參數
+    document.getElementById('input-thick').addEventListener('input', updateParams);
+    document.getElementById('input-range').addEventListener('input', updateParams);
+    updateParams();  // 初始同步
+
+    // 三線按鈕：展開/收合設定視窗
+    document.getElementById('toggle-settings').addEventListener('click', function() {
+        document.getElementById('settings-panel').classList.toggle('collapsed');
+    });
+}
+
+function updateParams() {
+    let thickInput = parseInt(document.getElementById('input-thick').value, 10);
+    let rangeInput = parseInt(document.getElementById('input-range').value, 10);
+    if (!isNaN(thickInput) && thickInput >= 100 && thickInput <= 5000) THICK_UM = thickInput;
+    if (!isNaN(rangeInput) && rangeInput >= 500 && rangeInput <= 10000) UM_MAX = rangeInput;
+    if (THICK_UM > UM_MAX) {
+        THICK_UM = UM_MAX;
+        document.getElementById('input-thick').value = THICK_UM;  // 同步回輸入框
+    }
+    thick = THICK_UM * 500 / UM_MAX * THICK_SCALE;
+}
+
+function draw() {
+    background(255);
+    
+    // 標題與網格輔助線 (可選)
+    drawUI();
+
+    // 1. 繪製上方示意圖（Surface 左、Reference R 右）
+    drawSensorProbe();
+    drawSurface(aPos, thick);
+    drawReferenceR(rPos);  // 參考面固定位置
+    
+    // 2. 繪製下方 Peak 圖表
+    drawGraph(aPos, thick, rPos);
+}
+
+function drawUI() {
+    fill(200);
+    noStroke();
+    textSize(16);
+    textAlign(RIGHT);
+    text("物理空間示意 (Physical Space)", 540, 25);
+    text("訊號光譜 (Signal Peaks)", 540, 510);
+}
+
+function drawSensorProbe() {
+    if (sensorImg && sensorImg.width > 0) {
+        let w = 85, h = 95;
+        image(sensorImg, 40, 30, w, h);  // 感測器探頭於參考面左側，示意由上往下量測
+    }
+}
+
+function drawReferenceR(y) {
+    stroke(255, 0, 0); strokeWeight(3);
+    line(345, y, 505, y); // 紅色 R 線（右移，與標籤拉開間距）
+    fill(255, 255, 0, 100); noStroke();
+    rect(345, y, 160, 15); // 黃色陰影
+    fill(0); textAlign(LEFT); text("R (Ref)", 285, y + 12);  // 標籤在線左側，略往右
+}
+
+function drawSurface(y, t) {
+    stroke(0, 100, 200); strokeWeight(2);
+    line(55, y, 255, y);         // 表面 a（左側區塊）
+    line(55, y + t, 255, y + t); // 表面 b
+    fill(0, 100, 200, 30); noStroke();
+    rect(55, y, 200, t);         // 藍色陰影 (2-surface)
+    fill(0); textAlign(LEFT); 
+    text("a", 38, y + 5); 
+    text("b", 38, y + t + 5);
+}
+
+function drawGraph(a, t, r) {
+    push();
+    translate(0, 670); // 座標系下移（配合畫布增高）
+    stroke(150); strokeWeight(1);
+    line(30, 0, 530, 0);    // X 軸
+    line(30, 0, 30, -150);  // Y 軸
+    
+    // X 軸刻度 0~UM_MAX µm（30~530 px 對應）
+    const xMin = 30, xMax = 530;
+    let tickStep = Math.max(100, Math.round(UM_MAX / 4));
+    for (let um = 0; um <= UM_MAX; um += tickStep) {
+        let px = xMin + (um / UM_MAX) * (xMax - xMin);
+        line(px, 0, px, 5);
+        fill(100); noStroke(); textAlign(CENTER); textSize(10);
+        text(um + "µm", px, 18);
+    }
+    
+    // diagram 距離（px）：t 代表 THICK_UM µm，轉成 graph 座標需 * (thickPx/t)
+    let thickPx = THICK_UM * 500 / UM_MAX;  // 物理厚度 300µm 對應的 graph px
+    let scaleToGraph = thickPx / t;         // diagram px → graph px（維持結果=300µm）
+    
+    let distAR = a - r;       // a 到 R 的距離（diagram px）
+    let distBR = (a + t) - r; // b 到 R 的距離（diagram px）
+    let distAR_g = distAR * scaleToGraph;   // 轉成 graph 座標（物理 µm 對應）
+    let distBR_g = distBR * scaleToGraph;
+    
+    let rangeOffset = (a - 125) * RANGE_COEF;  // 樣品愈下方，peak 愈往右
+    let aRBase = 30 - (r - 125) * RANGE_COEF;  // a=r 時 peak 對齊 x=30
+    
+    // a-R: 用 distAR_g 維持 X 軸 µm 刻度不變
+    let aRPos = (a >= r)
+        ? distAR_g + aRBase + rangeOffset
+        : aRBase + rangeOffset + ABOVE_COEF * (r - a) * scaleToGraph;
+    
+    // b-R: peak 間距固定為 thickPx（物理 300µm），與 THICK_SCALE 無關
+    let bothBelow = (a >= r && distBR >= 0);  // a、b 都在 R 下方
+    let bothAbove = (a < r && distBR < 0);   // a、b 都在 R 上方
+    let bRPos;
+    if (bothBelow) {
+        bRPos = aRPos + thickPx;  // b 較遠，間距=300µm
+    } else if (bothAbove) {
+        bRPos = aRPos - thickPx;  // a 較遠，間距=300µm
+    } else {
+        let bRBase = aRBase + t * RANGE_COEF;  // b=r 時對齊 0 軸（與 rangeOffset 的 t 抵銷）
+        if (distBR >= 0) {
+            let origB = distBR_g + bRBase + rangeOffset;
+            bRPos = origB - distBR_g * RANGE_COEF;
+        } else {
+            bRPos = bRBase + rangeOffset + (r - (a + t)) * scaleToGraph;
+        }
+    }
+    
+    // 將 pixel 轉換為 µm（30~530 px 對應 0~2000 µm）
+    let toUm = (px) => Math.round((px - 30) * UM_MAX / 500);
+    let toPx = (um) => 30 + um * 500 / UM_MAX;
+    
+    // a-b peak 固定於 1000 µm（厚度值）
+    let abPos = toPx(THICK_UM);
+    drawPeak(abPos, 120, "a-b (Thickness)", color(0, 102, 204), THICK_UM);
+    drawPeak(aRPos, 120, "a-R (Dist)", color(255, 50, 50), toUm(aRPos));
+    drawPeak(bRPos, 80, "b-R", color(100), toUm(bRPos));
+    pop();
+}
+
+function drawPeak(x, h, label, clr, umValue) {
+    noFill(); stroke(clr); strokeWeight(2);
+    beginShape();
+    for (let i = -15; i <= 15; i++) {
+        // 高斯函數模擬平滑 Peak（sigma=4 控制寬度，範圍 ±15）
+        let y = -h * exp(-sq(i) / (2 * sq(4))); 
+        vertex(x + i, y);
+    }
+    endShape();
+    fill(clr); noStroke(); textAlign(CENTER); textSize(11);
+    if (umValue !== undefined) {
+        text(umValue + " µm", x, -h - 8);  // 數值顯示在 peak 上方
+    }
+    text(label, x, 20);
+}
+
+// 滑鼠互動邏輯
+function mouseDragged() {
+    // 增加感應範圍，讓拖曳更靈敏
+    if (mouseY > aPos - 30 && mouseY < aPos + thick + 30) {
+        aPos = mouseY - thick/2;
+        // 限制移動範圍避免超出畫布
+        aPos = constrain(aPos, 125, 450);  // 上限 125 = sensor 下緣，下限擴展 
+    }
+}
+</script>
+
+</body>
+</html>
