@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
     <title>CHRocodile干涉式感測器原理Demo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <style>
@@ -55,6 +55,7 @@
             background: white;
             cursor: pointer;
             transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
         .settings-panel .toggle-btn:hover { background: #e9ecef; }
         .settings-panel .toggle-btn span {
@@ -101,7 +102,13 @@
         }
         /* 手機版響應式樣式 */
         @media (max-width: 768px) {
-            body { padding: 12px; }
+            html, body {
+                overflow-x: hidden;
+            }
+            body {
+                padding: 12px;
+                padding-bottom: calc(env(safe-area-inset-bottom) + 100px);
+            }
             .container {
                 flex-direction: column;
                 gap: 16px;
@@ -109,10 +116,13 @@
                 width: 100%;
                 max-width: 100%;
                 box-sizing: border-box;
+                overflow: hidden;
             }
             .settings-panel {
                 width: 100%;
                 flex-shrink: 0;
+                box-sizing: border-box;
+                overflow: hidden;
             }
             .settings-panel.collapsed {
                 width: 100%;
@@ -138,7 +148,6 @@
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
             }
-            canvas { touch-action: none; }
         }
     </style>
 </head>
@@ -205,10 +214,11 @@ function setup() {
     document.getElementById('toggle-settings').addEventListener('click', function() {
         document.getElementById('settings-panel').classList.toggle('collapsed');
     });
-    // 手機版預設展開設定面板
-    if (window.innerWidth <= 768) {
-        document.getElementById('settings-panel').classList.remove('collapsed');
-    }
+}
+
+function windowResized() {
+    scaleFactor = min((windowWidth - 48) / 560, (windowHeight - 200) / 720, 1);
+    resizeCanvas(560 * scaleFactor, 720 * scaleFactor);
 }
 
 function updateParams() {
@@ -238,6 +248,7 @@ function draw() {
     
     // 2. 繪製下方 Peak 圖表
     drawGraph(aPos, thick, rPos);
+    pop();
 }
 
 function drawUI() {
@@ -276,6 +287,7 @@ function drawSurface(y, t) {
 }
 
 function drawGraph(a, t, r) {
+    push();
     translate(0, 670); // 座標系下移（配合畫布增高）
     stroke(150); strokeWeight(1);
     line(30, 0, 530, 0);    // X 軸
@@ -336,7 +348,6 @@ function drawGraph(a, t, r) {
     drawPeak(aRPos, 120, "a-R (Dist)", color(255, 50, 50), toUm(aRPos));
     drawPeak(bRPos, 80, "b-R", color(100), toUm(bRPos));
     pop();
-    pop();  // 結束 scale
 }
 
 function drawPeak(x, h, label, clr, umValue) {
@@ -365,8 +376,11 @@ function handleDrag() {
 }
 function mouseDragged() { handleDrag(); }
 function touchMoved() {
-    handleDrag();
-    return false;  // 阻止頁面捲動
+    if (touches.length === 1) {
+        handleDrag();
+        return false;  // 單指拖曳時阻止頁面捲動
+    }
+    // 雙指縮放時不阻止，讓瀏覽器處理
 }
 </script>
 
