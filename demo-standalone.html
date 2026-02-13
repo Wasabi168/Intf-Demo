@@ -398,9 +398,9 @@ function drawRefPlaneSwitch() {
     fill(255);
     let knobX = showRefPlane ? x + w - knobD/2 - 4 : x + knobD/2 + 4;
     circle(knobX, y + h/2, knobD);
-    // 標籤（字體與物理空間示意同大）
-    fill(80); textAlign(LEFT); textSize(16);
-    text(t('refPlaneSwitch'), x - 60, y + h/2 + 5);
+    // 標籤（右對齊至按鈕左側，避免英文/德文長文字與按鈕重疊）
+    fill(80); textAlign(RIGHT); textSize(16);
+    text(t('refPlaneSwitch'), x - 8, y + h/2 + 5);
 }
 
 function drawReferenceR(y) {
