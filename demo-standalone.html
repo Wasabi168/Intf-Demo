@@ -388,15 +388,16 @@ function drawSensorProbe() {
 function drawRefPlaneSwitch() {
     let r = getSwitchRect();
     let x = r.x, y = r.y, w = r.w, h = r.h;
-    // 背景軌道（開啟＝亮綠色如 iPhone，關閉＝灰色）
-    if (showRefPlane) fill(52, 199, 89);  // iOS 風格亮綠 #34C759
+    let knobD = min(h - 8, w * 0.65);
+    // 背景軌道：開＝亮綠，關＝灰
+    if (showRefPlane) fill(52, 199, 89);  // iOS 風格亮綠
     else fill(180);
     noStroke();
     rect(x, y, w, h, h/2);  // 圓角＝高度一半，形成膠囊狀外觀
-    // 滑動圓鈕（依尺寸按比例）
-    let knobD = min(h - 8, w * 0.65);
+    // 滑動圓鈕（依 showRefPlane 位置）
     fill(255);
-    let knobX = showRefPlane ? x + w - knobD/2 - 4 : x + knobD/2 + 4;
+    let knobLeft = x + knobD/2 + 4, knobRight = x + w - knobD/2 - 4;
+    let knobX = showRefPlane ? knobRight : knobLeft;
     circle(knobX, y + h/2, knobD);
     // 標籤（右對齊至按鈕左側，避免英文/德文長文字與按鈕重疊）
     fill(80); textAlign(RIGHT); textSize(16);
@@ -514,8 +515,7 @@ function isInSwitch(px, py) {
     return px >= x && px <= x + w && py >= y && py <= y + h;
 }
 function mousePressed() {
-    let px = mouseX, py = mouseY;
-    if (isInSwitch(px, py)) {
+    if (isInSwitch(mouseX, mouseY)) {
         showRefPlane = !showRefPlane;
         return false;
     }
@@ -527,7 +527,7 @@ function touchStarted() {
     }
 }
 
-// 滑鼠互動邏輯
+// 滑鼠互動邏輯（表面拖曳）
 function handleDrag() {
     let y = (touches.length > 0 ? touches[0].y : mouseY) / scaleFactor;
     if (y > aPos - 40 && y < aPos + thick + 40) {
@@ -539,9 +539,8 @@ function mouseDragged() { handleDrag(); }
 function touchMoved() {
     if (touches.length === 1) {
         handleDrag();
-        return false;  // 單指拖曳時阻止頁面捲動
+        return false;
     }
-    // 雙指縮放時不阻止，讓瀏覽器處理
 }
 </script>
 
