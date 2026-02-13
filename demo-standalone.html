@@ -278,9 +278,22 @@ const THICK_SCALE = 0.5;  // 厚度 µm→px 換算係數（固定）
 let isDragging = false;
 let showRefPlane = true;  // 參考面開關，預設開啟
 let sensorImg;      // 感測器探頭示意圖
-const SWITCH_W = 48, SWITCH_H = 22;  // 開關尺寸（較小）
-const SWITCH_X = 560 - SWITCH_W - 15;  // 向右靠齊（右邊留 15px）
 const SWITCH_Y = 70;
+const MIN_TOUCH_PX = 48;   // 最小觸控尺寸（約手指寬）
+const MOBILE_BREAKPOINT = 768;  // 視窗寬度 < 768px 視為手機模式
+function getSwitchRect() {
+    let w, h;
+    if (windowWidth >= MOBILE_BREAKPOINT) {
+        // 電腦瀏覽器：較小按鈕
+        w = 70;
+        h = 32;
+    } else {
+        // 手機模式：較大按鈕（至少 48px 觸控，寬度足夠圓球切換）
+        h = max(44, ceil(MIN_TOUCH_PX / scaleFactor));
+        w = max(80, ceil(h * 1.9));
+    }
+    return { x: 560 - w - 15, y: SWITCH_Y, w, h };
+}
 let CW = 560, CH = 720;   // canvas 寬高（自適應用）
 let scaleFactor = 1;      // 手機版縮放係數
 
@@ -373,16 +386,18 @@ function drawSensorProbe() {
 }
 
 function drawRefPlaneSwitch() {
-    let x = SWITCH_X, y = SWITCH_Y, w = SWITCH_W, h = SWITCH_H;
+    let r = getSwitchRect();
+    let x = r.x, y = r.y, w = r.w, h = r.h;
     // 背景軌道（開啟＝亮綠色如 iPhone，關閉＝灰色）
     if (showRefPlane) fill(52, 199, 89);  // iOS 風格亮綠 #34C759
     else fill(180);
     noStroke();
-    rect(x, y, w, h, 5);
-    // 滑動圓鈕（依小尺寸調整）
+    rect(x, y, w, h, 6);
+    // 滑動圓鈕（依尺寸按比例）
+    let knobD = min(h - 8, w * 0.65);
     fill(255);
-    let knobX = showRefPlane ? x + w - h/2 - 2 : x + h/2 + 2;
-    circle(knobX, y + h/2, h - 6);
+    let knobX = showRefPlane ? x + w - knobD/2 - 4 : x + knobD/2 + 4;
+    circle(knobX, y + h/2, knobD);
     // 標籤（字體與物理空間示意同大）
     fill(80); textAlign(LEFT); textSize(16);
     text(t('refPlaneSwitch'), x - 60, y + h/2 + 5);
@@ -493,8 +508,9 @@ function drawPeak(x, h, label, clr, umValue) {
 
 // 開關點擊偵測
 function isInSwitch(px, py) {
-    let x = SWITCH_X * scaleFactor, y = SWITCH_Y * scaleFactor;
-    let w = SWITCH_W * scaleFactor, h = SWITCH_H * scaleFactor;
+    let r = getSwitchRect();
+    let x = r.x * scaleFactor, y = r.y * scaleFactor;
+    let w = r.w * scaleFactor, h = r.h * scaleFactor;
     return px >= x && px <= x + w && py >= y && py <= y + h;
 }
 function mousePressed() {
