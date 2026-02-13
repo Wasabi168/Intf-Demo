@@ -197,7 +197,8 @@ const i18n = {
         instructionsLabel: '操作說明：', instructionsText: '拖曳藍色表面來觀察下方訊號變化。',
         toggleSettings: '展開/收合設定',
         physicalSpace: '物理空間示意 (Physical Space)', signalPeaks: '訊號光譜 (Signal Peaks)',
-        labelAb: 'a-b (Thickness)', labelAR: 'a-R (Dist)', labelBR: 'b-R'
+        labelAb: 'a-b (Thickness)', labelAR: 'a-R (Dist)', labelBR: 'b-R',
+        refPlaneSwitch: '參考面'
     },
     'zh-CN': {
         settingsTitle: '设置', langLabel: '语言', langAuto: '自动（跟随浏览器）', thickLabel: '厚度 (µm)', rangeLabel: 'X 轴行程 (µm)',
@@ -205,7 +206,8 @@ const i18n = {
         instructionsLabel: '操作说明：', instructionsText: '拖曳蓝色表面来观察下方讯号变化。',
         toggleSettings: '展开/收起设置',
         physicalSpace: '物理空间示意 (Physical Space)', signalPeaks: '讯号光谱 (Signal Peaks)',
-        labelAb: 'a-b (厚度)', labelAR: 'a-R (距离)', labelBR: 'b-R'
+        labelAb: 'a-b (厚度)', labelAR: 'a-R (距离)', labelBR: 'b-R',
+        refPlaneSwitch: '参考面'
     },
     'en': {
         settingsTitle: 'Settings', langLabel: 'Language', langAuto: 'Auto (Browser)', thickLabel: 'Thickness (µm)', rangeLabel: 'X Range (µm)',
@@ -213,7 +215,8 @@ const i18n = {
         instructionsLabel: 'Instructions:', instructionsText: 'Drag the blue surface to observe signal changes below.',
         toggleSettings: 'Expand/Collapse settings',
         physicalSpace: 'Physical Space', signalPeaks: 'Signal Peaks',
-        labelAb: 'a-b (Thickness)', labelAR: 'a-R (Dist)', labelBR: 'b-R'
+        labelAb: 'a-b (Thickness)', labelAR: 'a-R (Dist)', labelBR: 'b-R',
+        refPlaneSwitch: 'Ref. Plane'
     },
     'de': {
         settingsTitle: 'Einstellungen', langLabel: 'Sprache', langAuto: 'Auto (Browser)', thickLabel: 'Dicke (µm)', rangeLabel: 'X-Bereich (µm)',
@@ -221,7 +224,8 @@ const i18n = {
         instructionsLabel: 'Anleitung:', instructionsText: 'Ziehen Sie die blaue Fläche, um die Signale unten zu beobachten.',
         toggleSettings: 'Einstellungen ein-/ausklappen',
         physicalSpace: 'Physikalischer Raum', signalPeaks: 'Signal-Peaks',
-        labelAb: 'a-b (Dicke)', labelAR: 'a-R (Abst.)', labelBR: 'b-R'
+        labelAb: 'a-b (Dicke)', labelAR: 'a-R (Abst.)', labelBR: 'b-R',
+        refPlaneSwitch: 'Bezugsfläche'
     }
 };
 let currentLang = 'zh-TW';  // 快取當前語言，供 canvas draw 使用
@@ -272,7 +276,11 @@ const RANGE_COEF = 0.2;   // rangeOffset 與 aRBase 共用係數（a≥r 時 pea
 const ABOVE_COEF = 1.2;   // a < r 時 peak 靈敏度（surface 在參考面上方）
 const THICK_SCALE = 0.5;  // 厚度 µm→px 換算係數（固定）
 let isDragging = false;
+let showRefPlane = true;  // 參考面開關，預設開啟
 let sensorImg;      // 感測器探頭示意圖
+const SWITCH_W = 48, SWITCH_H = 22;  // 開關尺寸（較小）
+const SWITCH_X = 560 - SWITCH_W - 15;  // 向右靠齊（右邊留 15px）
+const SWITCH_Y = 70;
 let CW = 560, CH = 720;   // canvas 寬高（自適應用）
 let scaleFactor = 1;      // 手機版縮放係數
 
@@ -337,12 +345,14 @@ function draw() {
     drawUI();
 
     // 1. 繪製上方示意圖（Surface 左、Reference R 右）
+    drawRefPlaneSwitch();   // 參考面開關（在參考面上方）
     drawSensorProbe();
     drawSurface(aPos, thick);
     drawReferenceR(rPos);  // 參考面固定位置
     
     // 2. 繪製下方 Peak 圖表
     drawGraph(aPos, thick, rPos);
+    cursor(isInSwitch(mouseX, mouseY) ? 'pointer' : 'grab');
     pop();
 }
 
@@ -362,12 +372,29 @@ function drawSensorProbe() {
     }
 }
 
+function drawRefPlaneSwitch() {
+    let x = SWITCH_X, y = SWITCH_Y, w = SWITCH_W, h = SWITCH_H;
+    // 背景軌道（開啟＝亮綠色如 iPhone，關閉＝灰色）
+    if (showRefPlane) fill(52, 199, 89);  // iOS 風格亮綠 #34C759
+    else fill(180);
+    noStroke();
+    rect(x, y, w, h, 5);
+    // 滑動圓鈕（依小尺寸調整）
+    fill(255);
+    let knobX = showRefPlane ? x + w - h/2 - 2 : x + h/2 + 2;
+    circle(knobX, y + h/2, h - 6);
+    // 標籤（字體與物理空間示意同大）
+    fill(80); textAlign(LEFT); textSize(16);
+    text(t('refPlaneSwitch'), x - 60, y + h/2 + 5);
+}
+
 function drawReferenceR(y) {
-    stroke(255, 0, 0); strokeWeight(3);
+    let alpha = showRefPlane ? 255 : 80;  // 關閉時半透明
+    stroke(255, 0, 0, alpha); strokeWeight(3);
     line(345, y, 505, y); // 紅色 R 線（右移，與標籤拉開間距）
-    fill(255, 255, 0, 100); noStroke();
+    fill(255, 255, 0, showRefPlane ? 100 : 40); noStroke();
     rect(345, y, 160, 15); // 黃色陰影
-    fill(0); textAlign(LEFT); text("R (Ref)", 285, y + 12);  // 標籤在線左側，略往右
+    fill(0, 0, 0, alpha); textAlign(LEFT); text("R (Ref)", 285, y + 12);  // 標籤
 }
 
 function drawSurface(y, t) {
@@ -440,8 +467,11 @@ function drawGraph(a, thk, r) {
     // a-b peak 固定於 1000 µm（厚度值）
     let abPos = toPx(THICK_UM);
     drawPeak(abPos, 120, t('labelAb'), color(0, 102, 204), THICK_UM);
-    drawPeak(aRPos, 120, t('labelAR'), color(255, 50, 50), toUm(aRPos));
-    drawPeak(bRPos, 80, t('labelBR'), color(100), toUm(bRPos));
+    // a-R、b-R peak：參考面開啟時顯示，關閉時完全隱藏
+    if (showRefPlane) {
+        drawPeak(aRPos, 120, t('labelAR'), color(255, 50, 50), toUm(aRPos));
+        drawPeak(bRPos, 80, t('labelBR'), color(100), toUm(bRPos));
+    }
     pop();
 }
 
@@ -459,6 +489,26 @@ function drawPeak(x, h, label, clr, umValue) {
         text(umValue + " µm", x, -h - 8);  // 數值顯示在 peak 上方
     }
     text(label, x, 20);
+}
+
+// 開關點擊偵測
+function isInSwitch(px, py) {
+    let x = SWITCH_X * scaleFactor, y = SWITCH_Y * scaleFactor;
+    let w = SWITCH_W * scaleFactor, h = SWITCH_H * scaleFactor;
+    return px >= x && px <= x + w && py >= y && py <= y + h;
+}
+function mousePressed() {
+    let px = mouseX, py = mouseY;
+    if (isInSwitch(px, py)) {
+        showRefPlane = !showRefPlane;
+        return false;
+    }
+}
+function touchStarted() {
+    if (touches.length === 1 && isInSwitch(touches[0].x, touches[0].y)) {
+        showRefPlane = !showRefPlane;
+        return false;
+    }
 }
 
 // 滑鼠互動邏輯
