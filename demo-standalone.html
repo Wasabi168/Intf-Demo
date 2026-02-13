@@ -407,11 +407,31 @@ function drawRefPlaneSwitch() {
 
 function drawReferenceR(y) {
     let alpha = showRefPlane ? 255 : 80;  // 關閉時半透明
+    // 虛線：從紅線左側向左延伸，超過 surface 左側，方便對齊 a/b 與參考面等高
+    stroke(150, 150, 150, alpha); strokeWeight(1.5);
+    drawingContext.setLineDash([6, 5]);
+    line(40, y, 345, y);
+    drawingContext.setLineDash([]);
+    // 紅色 R 線
     stroke(255, 0, 0, alpha); strokeWeight(3);
-    line(345, y, 505, y); // 紅色 R 線（右移，與標籤拉開間距）
-    fill(255, 255, 0, showRefPlane ? 100 : 40); noStroke();
-    rect(345, y, 160, 15); // 黃色陰影
-    fill(0, 0, 0, alpha); textAlign(LEFT); text("R (Ref)", 285, y + 12);  // 標籤
+    line(345, y, 505, y);
+    // 淺灰色底 + 斜線（鏡面示意），斜線不超出紅線區域
+    fill(220, 220, 220, showRefPlane ? 180 : 80); noStroke();
+    rect(345, y, 160, 15);
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.rect(345, y, 160, 15);
+    drawingContext.clip();
+    stroke(180, 180, 180, showRefPlane ? 200 : 100); strokeWeight(1);
+    let sp = 8;
+    for (let i = -20; i < 200; i += sp) {
+        line(345 + i, y, 345 + i + 20, y + 15);
+    }
+    drawingContext.restore();
+    noStroke();
+    // 標籤：紅黃參考面上方靠右
+    fill(0, 0, 0, alpha); textAlign(RIGHT); textSize(14);
+    text("R (Ref)", 505, y - 6);
 }
 
 function drawSurface(y, t) {
